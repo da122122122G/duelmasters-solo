@@ -340,7 +340,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
 <div class="modal" id="shieldReviewModal">
   <div class="modalBox">
     <h3>シールド確認 <span id="shieldReviewCount"></span></h3>
-    <div class="notice">確認しているだけでは表向きになりません。「手札へ」で1枚ずつ加えられます。</div>
+    <div class="notice">シールドは裏向きのまま表示します。必要なカードだけ「表にする」で確認し、そのまま「手札へ」で加えられます。</div>
     <div class="shieldReviewGrid" id="shieldReviewGrid"></div>
     <button id="closeShieldReview">閉じる</button>
   </div>
@@ -352,7 +352,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   <p><b>デッキ画像1枚</b>：キミが送ってくれたような DECK MAKER の8列×5段画像を選ぶと、40枚に自動分割します。</p><p><b>トリミング調整</b>：40枚プレビューの「トリミング調整」から、全体X/Yだけでなく段ごとのY・列ごとのXも1px単位で調整できます。</p>
   <p><b>PC</b>：カードをドラッグして各ゾーンへ移動できます。場のカードへ別の場のカードをドロップすると重ねます。</p>
   <p><b>スマホ</b>：カードをタップして選択 → 下の移動先ボタン、という操作が安定です。</p>
-  <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押すと表を一覧で確認できます。そこから1枚ずつ「手札へ」で加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
+  <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押しても最初は裏向きのままです。必要なカードだけ「表にする」で確認し、「手札へ」で1枚ずつ加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
   <p><b>場・マナ</b>：選択後「タップ/アンタップ」で横向きにできます。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
   <button id="closeHelp">閉じる</button>
  </div>
@@ -918,18 +918,29 @@ function openShieldReview(){
       item.className='shieldReviewItem';
 
       const img=document.createElement('img');
-      img.src=c.src;
+      img.src=c.revealed ? c.src : CARD_BACK_IMAGE;
       img.alt=c.name||'shield';
       item.appendChild(img);
 
-      const btn=document.createElement('button');
-      btn.textContent='手札へ';
-      btn.onclick=e=>{
+      const revealBtn=document.createElement('button');
+      revealBtn.textContent=c.revealed ? '裏に戻す' : '表にする';
+      revealBtn.onclick=e=>{
+        e.stopPropagation();
+        pushHistory();
+        c.revealed=!c.revealed;
+        openShieldReview();
+        render();
+      };
+      item.appendChild(revealBtn);
+
+      const handBtn=document.createElement('button');
+      handBtn.textContent='手札へ';
+      handBtn.onclick=e=>{
         e.stopPropagation();
         moveCard(c.id,'hand');
         openShieldReview();
       };
-      item.appendChild(btn);
+      item.appendChild(handBtn);
 
       host.appendChild(item);
     });
