@@ -258,15 +258,31 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
 
 
 /* マナは自分から見て上下逆。タップは逆方向へ90度回す。 */
-#manaZone .cards{gap:3px}
+#manaZone{overflow:hidden}
+#manaZone .cards{
+  gap:2px;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding:0 2px 8px;
+  box-sizing:border-box;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+#manaZone .cards::-webkit-scrollbar{display:none}
 #manaZone .card{transform:rotate(180deg)}
 #manaZone .card.tapped{
+  /*
+    回転すると見た目の横幅が card-h になる。
+    左側にはみ出さない分だけ左マージンを確保し、
+    右側は負のマージンで重ねて省スペース化する。
+  */
   transform:rotate(90deg);
-  margin:0 -7px;
+  margin-left:calc((var(--card-h) - var(--card-w)) / 2);
+  margin-right:calc((var(--card-w) - var(--card-h)) / 2 - 10px);
 }
 @media(max-width:760px){
   #manaZone .cards{gap:2px}
-  #manaZone .card.tapped{margin:0 -6px}
 }
 
 </style>
@@ -406,7 +422,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   <p><b>PC</b>：カードをドラッグして各ゾーンへ移動できます。場のカードへ別の場のカードをドロップすると重ねます。</p>
   <p><b>スマホ</b>：カードはそのまま指でドラッグして、場・マナ・手札・墓地・シールドへ移動できます。手札など場以外のカードでも、場のカードの上へ直接ドロップすれば、そのまま場へ出して上に重なります。タップ時は操作バーが出ますが、移動系のボタンは後半にまとめています。</p>
   <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押しても最初は裏向きのままです。必要なカードだけ「表にする」で確認し、「手札へ」で1枚ずつ加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
-  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。上部の「全部アンタップ」で場とマナをまとめてアンタップできます。タップ方向は左向きです。マナは自動で上下逆向きになり、アンタップ中を先・タップ中を後ろに自動整列し、タップ中は少し重ねて省スペース表示します。</p>
+  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。上部の「全部アンタップ」で場とマナをまとめてアンタップできます。タップ方向は左向きです。マナは自動で上下逆向きになり、アンタップ中を先・タップ中を後ろに自動整列します。タップ中は横にはみ出さない位置から重ねて並べ、枚数が多い場合はマナゾーン内だけ横スクロールできます。</p>
 <p><b>山札</b>：「1枚マナ」で山札の一番上を直接マナゾーンへ置けます。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
   <button id="closeHelp">閉じる</button>
  </div>
