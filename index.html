@@ -49,7 +49,7 @@ header{
   user-select:none;box-shadow:0 2px 5px rgba(0,0,0,.35)
 }
 .card img{width:100%;height:100%;object-fit:cover;border-radius:5px;pointer-events:none;display:block}
-.card.tapped{transform:rotate(90deg);margin:16px 15px}#shieldZone .card.tapped{margin:0}
+.card.tapped{transform:rotate(-90deg);margin:16px 15px}#shieldZone .card.tapped{margin:0}
 .card.selected{outline:3px solid var(--accent);outline-offset:2px}
 .card.faceDown{
   background:#1a2d43;
@@ -257,11 +257,11 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
 }
 
 
-/* マナは自分から見て上下逆。タップ時はそこから90度回す。 */
+/* マナは自分から見て上下逆。タップは逆方向へ90度回す。 */
 #manaZone .cards{gap:3px}
 #manaZone .card{transform:rotate(180deg)}
 #manaZone .card.tapped{
-  transform:rotate(270deg);
+  transform:rotate(90deg);
   margin:0 -7px;
 }
 @media(max-width:760px){
@@ -297,6 +297,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
       <div class="deckCount" id="deckCount">0枚</div>
       <div class="deckActions">
         <button id="drawBtn">1枚引く</button>
+        <button id="manaFromDeckBtn">1枚マナ</button>
         <button id="millBtn">1枚墓地</button>
         <button id="shieldBtn">1枚シールド</button>
       </div>
@@ -403,9 +404,10 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   <h3>操作</h3>
   <p><b>デッキ画像1枚</b>：キミが送ってくれたような DECK MAKER の8列×5段画像を選ぶと、40枚に自動分割します。</p><p><b>トリミング調整</b>：40枚プレビューの「トリミング調整」から、全体X/Yだけでなく段ごとのY・列ごとのXも1px単位で調整できます。</p>
   <p><b>PC</b>：カードをドラッグして各ゾーンへ移動できます。場のカードへ別の場のカードをドロップすると重ねます。</p>
-  <p><b>スマホ</b>：カードはそのまま指でドラッグして、場・マナ・手札・墓地・シールドへ移動できます。場のカードの上へドロップすると上に重なります。タップ時は操作バーが出ますが、移動系のボタンは後半にまとめています。</p>
+  <p><b>スマホ</b>：カードはそのまま指でドラッグして、場・マナ・手札・墓地・シールドへ移動できます。手札など場以外のカードでも、場のカードの上へ直接ドロップすれば、そのまま場へ出して上に重なります。タップ時は操作バーが出ますが、移動系のボタンは後半にまとめています。</p>
   <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押しても最初は裏向きのままです。必要なカードだけ「表にする」で確認し、「手札へ」で1枚ずつ加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
-  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。上部の「全部アンタップ」で場とマナをまとめてアンタップできます。マナに置いたカードは自動で上下逆向きになり、タップ中は少し重なるように省スペース表示します。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
+  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。上部の「全部アンタップ」で場とマナをまとめてアンタップできます。タップ方向は左向きです。マナは自動で上下逆向きになり、アンタップ中を先・タップ中を後ろに自動整列し、タップ中は少し重ねて省スペース表示します。</p>
+<p><b>山札</b>：「1枚マナ」で山札の一番上を直接マナゾーンへ置けます。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
   <button id="closeHelp">閉じる</button>
  </div>
 </div>
@@ -663,7 +665,17 @@ function updateStatus(){
   }
 }
 
-function zoneList(z){return cards.filter(c=>c.zone===z && !c.stackParent)}
+function zoneList(z){
+  const list=cards.filter(c=>c.zone===z && !c.stackParent);
+
+  // マナはアンタップ済みを先、タップ済みを後ろへ自動整列。
+  // 同じ状態同士の相対順は保つ。
+  if(z==='mana'){
+    list.sort((a,b)=>Number(a.tapped)-Number(b.tapped));
+  }
+
+  return list;
+}
 
 function render(){
   ZONES.forEach(z=>{
@@ -827,7 +839,7 @@ function endTouchDrag(e){
     const moving=cardById(touchDrag.cardId);
 
     if(drop && moving){
-      if(drop.type==='stack' && moving.zone==='battle'){
+      if(drop.type==='stack'){
         stackOnto(moving.id,drop.cardId);
       }else if(drop.type==='zone'){
         if(drop.zone==='deck') moveCard(moving.id,'deck','top');
@@ -1000,6 +1012,7 @@ function takeTop(target,record=true){
   const c=cardById(id);
   c.zone=target;
   c.revealed=target!=='shield';
+  c.tapped=false;
   render();
 }
 
@@ -1028,15 +1041,31 @@ function setBattleStackTapped(card, tapped){
 
 function stackOnto(movingId,targetId,record=true){
   const m=cardById(movingId),t=cardById(targetId);
+
+  // 重ね先だけが場にあれば、手札・マナ・墓地・シールドからでも
+  // そのまま場へ出して上に重ねられる。
+  if(!m||!t||m===t||t.zone!=='battle')return;
   if(record)pushHistory();
-  if(!m||!t||m===t||m.zone!=='battle'||t.zone!=='battle')return;
 
   detachFromStack(m);
+
+  // 場以外から来たカードは、まず場へ移した扱いにする。
+  if(m.zone!=='battle'){
+    deck=deck.filter(x=>x!==m.id);
+    m.zone='battle';
+    m.revealed=true;
+    m.tapped=false;
+  }
+
   let root=t;
   while(root.stackParent)root=cardById(root.stackParent);
   root.stackChildren=root.stackChildren||[];
-  if(!root.stackChildren.includes(m.id))root.stackChildren.push(m.id);
+
+  if(!root.stackChildren.includes(m.id)){
+    root.stackChildren.push(m.id);
+  }
   m.stackParent=root.id;
+
   selectedId=null;
   stackingMode=false;
   render();
@@ -1353,6 +1382,7 @@ $('resetBtn').onclick=()=>{
   if(cards.length&&confirm('全カードを山札に戻してシャッフルしますか？'))resetToDeck(true);
 };
 $('drawBtn').onclick=()=>takeTop('hand');
+$('manaFromDeckBtn').onclick=()=>takeTop('mana');
 $('millBtn').onclick=()=>takeTop('grave');
 $('shieldBtn').onclick=()=>takeTop('shield');
 
