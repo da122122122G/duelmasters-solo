@@ -221,6 +221,41 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   border-color:#69b4ff;
 }
 
+
+.selectionSep{
+  width:1px;
+  min-width:1px;
+  align-self:stretch;
+  background:#4a5e73;
+  margin:2px 2px
+}
+.touchDragGhost{
+  position:fixed;
+  z-index:1000;
+  width:var(--card-w);
+  height:var(--card-h);
+  pointer-events:none;
+  opacity:.88;
+  transform:translate(-50%,-50%) scale(1.06);
+  border-radius:7px;
+  box-shadow:0 12px 28px rgba(0,0,0,.55)
+}
+.touchDragGhost img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:6px;
+  display:block
+}
+.zone.touchDropTarget{
+  outline:3px solid var(--accent);
+  outline-offset:-4px
+}
+.card.touchStackTarget{
+  outline:3px solid #ffd166;
+  outline-offset:2px
+}
+
 </style>
 </head>
 <body>
@@ -260,18 +295,21 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
 </main>
 
 <div id="selectionBar">
-  <button data-move="hand">手札</button>
-  <button data-move="battle">場</button>
-  <button data-move="mana">マナ</button>
-  <button data-move="shield">シールド</button>
-  <button data-move="grave">墓地</button>
-  <button data-move="deckTop">山札上</button>
-  <button data-move="deckBottom">山札下</button>
+  <button id="tapBtn">タップ/アンタップ</button>
+  <button id="revealBtn">表/裏</button>
   <button id="stackBtn">上に重ねる</button>
   <button id="understackBtn">下に敷く</button>
   <button id="unstackBtn">重なりから外す</button>
-  <button id="tapBtn">タップ/アンタップ</button>
-  <button id="revealBtn">表/裏</button>
+
+  <span class="selectionSep"></span>
+
+  <button data-move="hand">手札へ</button>
+  <button data-move="battle">場へ</button>
+  <button data-move="mana">マナへ</button>
+  <button data-move="shield">シールドへ</button>
+  <button data-move="grave">墓地へ</button>
+  <button data-move="deckTop">山札上へ</button>
+  <button data-move="deckBottom">山札下へ</button>
   <button id="cancelSel">×</button>
 </div>
 
@@ -351,7 +389,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   <h3>操作</h3>
   <p><b>デッキ画像1枚</b>：キミが送ってくれたような DECK MAKER の8列×5段画像を選ぶと、40枚に自動分割します。</p><p><b>トリミング調整</b>：40枚プレビューの「トリミング調整」から、全体X/Yだけでなく段ごとのY・列ごとのXも1px単位で調整できます。</p>
   <p><b>PC</b>：カードをドラッグして各ゾーンへ移動できます。場のカードへ別の場のカードをドロップすると重ねます。</p>
-  <p><b>スマホ</b>：カードをタップして選択 → 下の移動先ボタン、という操作が安定です。</p>
+  <p><b>スマホ</b>：カードはそのまま指でドラッグして、場・マナ・手札・墓地・シールドへ移動できます。場のカードの上へドロップすると上に重なります。タップ時は操作バーが出ますが、移動系のボタンは後半にまとめています。</p>
   <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押しても最初は裏向きのままです。必要なカードだけ「表にする」で確認し、「手札へ」で1枚ずつ加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
   <p><b>場・マナ</b>：選択後「タップ/アンタップ」で横向きにできます。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
   <button id="closeHelp">閉じる</button>
@@ -390,6 +428,16 @@ function cloneCropAdjust(src){
 let cropAdjust = cloneCropAdjust(DEFAULT_CROP_ADJUST);
 let history = [];
 const HISTORY_LIMIT = 100;
+
+let touchDrag = {
+  active:false,
+  pointerId:null,
+  cardId:null,
+  startX:0,
+  startY:0,
+  ghost:null,
+  moved:false
+};
 
 const $ = id => document.getElementById(id);
 const zoneEl = z => $(z+'Zone');
@@ -642,6 +690,109 @@ function render(){
   updateStatus();
 }
 
+function clearTouchDropHighlights(){
+  document.querySelectorAll('.touchDropTarget').forEach(el=>el.classList.remove('touchDropTarget'));
+  document.querySelectorAll('.touchStackTarget').forEach(el=>el.classList.remove('touchStackTarget'));
+}
+
+function getDropTargetAt(x,y,draggedId){
+  clearTouchDropHighlights();
+
+  const el=document.elementFromPoint(x,y);
+  if(!el)return null;
+
+  const cardEl=el.closest?.('.card');
+  if(cardEl && cardEl.dataset.id && cardEl.dataset.id!==draggedId){
+    const targetCard=cardById(cardEl.dataset.id);
+    if(targetCard?.zone==='battle'){
+      cardEl.classList.add('touchStackTarget');
+      return {type:'stack',cardId:targetCard.id};
+    }
+  }
+
+  const zone=el.closest?.('.zone');
+  if(zone?.dataset.zone){
+    zone.classList.add('touchDropTarget');
+    return {type:'zone',zone:zone.dataset.zone};
+  }
+
+  return null;
+}
+
+function startTouchDrag(el,c,e){
+  if(e.pointerType==='mouse')return;
+  touchDrag.active=true;
+  touchDrag.pointerId=e.pointerId;
+  touchDrag.cardId=c.id;
+  touchDrag.startX=e.clientX;
+  touchDrag.startY=e.clientY;
+  touchDrag.moved=false;
+
+  const ghost=document.createElement('div');
+  ghost.className='touchDragGhost';
+  const img=document.createElement('img');
+  img.src=c.revealed ? c.src : CARD_BACK_IMAGE;
+  ghost.appendChild(img);
+  ghost.style.left=e.clientX+'px';
+  ghost.style.top=e.clientY+'px';
+  ghost.style.display='none';
+  document.body.appendChild(ghost);
+  touchDrag.ghost=ghost;
+
+  try{el.setPointerCapture(e.pointerId)}catch(_){}
+}
+
+function moveTouchDrag(e){
+  if(!touchDrag.active || e.pointerId!==touchDrag.pointerId)return;
+
+  const dx=e.clientX-touchDrag.startX;
+  const dy=e.clientY-touchDrag.startY;
+  if(!touchDrag.moved && Math.hypot(dx,dy)<10)return;
+
+  touchDrag.moved=true;
+  e.preventDefault();
+
+  if(touchDrag.ghost){
+    touchDrag.ghost.style.display='block';
+    touchDrag.ghost.style.left=e.clientX+'px';
+    touchDrag.ghost.style.top=e.clientY+'px';
+  }
+  getDropTargetAt(e.clientX,e.clientY,touchDrag.cardId);
+}
+
+function endTouchDrag(e){
+  if(!touchDrag.active || e.pointerId!==touchDrag.pointerId)return false;
+
+  const wasMoved=touchDrag.moved;
+  if(wasMoved){
+    e.preventDefault();
+    const drop=getDropTargetAt(e.clientX,e.clientY,touchDrag.cardId);
+    const moving=cardById(touchDrag.cardId);
+
+    if(drop && moving){
+      if(drop.type==='stack' && moving.zone==='battle'){
+        stackOnto(moving.id,drop.cardId);
+      }else if(drop.type==='zone'){
+        if(drop.zone==='deck') moveCard(moving.id,'deck','top');
+        else moveCard(moving.id,drop.zone);
+      }
+    }
+  }
+
+  clearTouchDropHighlights();
+  touchDrag.ghost?.remove();
+  touchDrag={
+    active:false,
+    pointerId:null,
+    cardId:null,
+    startX:0,
+    startY:0,
+    ghost:null,
+    moved:false
+  };
+  return wasMoved;
+}
+
 function makeCardEl(c,zone){
   const el=document.createElement('div');
   el.className='card'+(c.tapped?' tapped':'')+(c.id===selectedId?' selected':'')+(!c.revealed?' faceDown':'');
@@ -661,8 +812,21 @@ function makeCardEl(c,zone){
   img.alt=c.name||'card';
   el.appendChild(img);
 
+  el.addEventListener('pointerdown',e=>startTouchDrag(el,c,e));
+  el.addEventListener('pointermove',moveTouchDrag);
+  el.addEventListener('pointerup',e=>{
+    const moved=endTouchDrag(e);
+    if(moved){
+      // pointerup後に発火するclickで選択状態が変わらないよう印を付ける
+      el.dataset.suppressClick='1';
+      setTimeout(()=>{delete el.dataset.suppressClick},0);
+    }
+  });
+  el.addEventListener('pointercancel',e=>endTouchDrag(e));
+
   el.addEventListener('click',e=>{
     e.stopPropagation();
+    if(el.dataset.suppressClick==='1')return;
 
     // スマホ向け：場のカードを選択→「重ねる」→重ね先をタップ
     if(stackingMode && selectedId && c.id!==selectedId){
