@@ -258,10 +258,15 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
 
 
 /* マナは自分から見て上下逆。タップ時はそこから90度回す。 */
+#manaZone .cards{gap:3px}
 #manaZone .card{transform:rotate(180deg)}
-#manaZone .card.tapped{transform:rotate(270deg);margin:16px 15px}
+#manaZone .card.tapped{
+  transform:rotate(270deg);
+  margin:0 -7px;
+}
 @media(max-width:760px){
-  #manaZone .card.tapped{margin:14px}
+  #manaZone .cards{gap:2px}
+  #manaZone .card.tapped{margin:0 -6px}
 }
 
 </style>
@@ -274,6 +279,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
     <label class="btn" for="multiCardInput">カード画像複数</label>
     <input id="multiCardInput" type="file" accept="image/*" multiple>
     <button id="undoBtn" disabled>1つ戻る</button>
+    <button id="untapAllBtn">全部アンタップ</button>
     <button id="shuffleBtn">シャッフル</button>
     <button id="setupBtn">初期配置</button>
     <button id="resetBtn">全て山札へ</button>
@@ -399,7 +405,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   <p><b>PC</b>：カードをドラッグして各ゾーンへ移動できます。場のカードへ別の場のカードをドロップすると重ねます。</p>
   <p><b>スマホ</b>：カードはそのまま指でドラッグして、場・マナ・手札・墓地・シールドへ移動できます。場のカードの上へドロップすると上に重なります。タップ時は操作バーが出ますが、移動系のボタンは後半にまとめています。</p>
   <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押しても最初は裏向きのままです。必要なカードだけ「表にする」で確認し、「手札へ」で1枚ずつ加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
-  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。操作バーの「タップ/アンタップ」も使えます。マナに置いたカードは自動で上下逆向きになります。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
+  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。上部の「全部アンタップ」で場とマナをまとめてアンタップできます。マナに置いたカードは自動で上下逆向きになり、タップ中は少し重なるように省スペース表示します。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
   <button id="closeHelp">閉じる</button>
  </div>
 </div>
@@ -724,6 +730,21 @@ function toggleCardTapped(c){
   }
 
   return false;
+}
+
+function untapAll(){
+  const targets=cards.filter(c=>(c.zone==='battle'||c.zone==='mana') && c.tapped);
+  if(!targets.length){
+    $('status').textContent='タップ中のカードはありません';
+    return;
+  }
+
+  pushHistory();
+  targets.forEach(c=>{c.tapped=false});
+  selectedId=null;
+  stackingMode=false;
+  render();
+  $('status').textContent='場とマナを全部アンタップしました';
 }
 
 function clearTouchDropHighlights(){
@@ -1325,6 +1346,7 @@ $('multiCardInput').addEventListener('change',async e=>{
 });
 
 $('undoBtn').onclick=undo;
+$('untapAllBtn').onclick=untapAll;
 $('shuffleBtn').onclick=()=>{if(deck.length>1){pushHistory();shuffle(deck);render()}};
 $('setupBtn').onclick=setup;
 $('resetBtn').onclick=()=>{
