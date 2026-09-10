@@ -256,6 +256,14 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   outline-offset:2px
 }
 
+
+/* マナは自分から見て上下逆。タップ時はそこから90度回す。 */
+#manaZone .card{transform:rotate(180deg)}
+#manaZone .card.tapped{transform:rotate(270deg);margin:16px 15px}
+@media(max-width:760px){
+  #manaZone .card.tapped{margin:14px}
+}
+
 </style>
 </head>
 <body>
@@ -391,7 +399,7 @@ summary{cursor:pointer;font-size:12px;font-weight:700;color:#d2deea}
   <p><b>PC</b>：カードをドラッグして各ゾーンへ移動できます。場のカードへ別の場のカードをドロップすると重ねます。</p>
   <p><b>スマホ</b>：カードはそのまま指でドラッグして、場・マナ・手札・墓地・シールドへ移動できます。場のカードの上へドロップすると上に重なります。タップ時は操作バーが出ますが、移動系のボタンは後半にまとめています。</p>
   <p><b>初期配置</b>：全カードを山札へ戻してシャッフル → シールド5枚 → 手札5枚。</p><p><b>シールド確認</b>：「確認」を押しても最初は裏向きのままです。必要なカードだけ「表にする」で確認し、「手札へ」で1枚ずつ加えられます。</p><p><b>1つ戻る</b>：移動・ドロー・シャッフル・タップ・表裏・重ね操作など、直前の盤面操作を戻します。</p>
-  <p><b>場・マナ</b>：選択後「タップ/アンタップ」で横向きにできます。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
+  <p><b>場・マナ</b>：ダブルタップでタップ/アンタップを切り替えられます。操作バーの「タップ/アンタップ」も使えます。マナに置いたカードは自動で上下逆向きになります。</p><p><b>場で重ねる</b>：重ねたいカードを選択 →「上に重ねる」→ 重ね先をタップ。逆に土台にしたい時は「下に敷く」を使います。PCではドラッグで上に重ねることもできます。</p><p><b>重なりから外す</b>：重なっているカードを選択 →「重なりから外す」。途中のカードだけでも外せます。一番下のカードを外した場合は、その上のカードが新しい土台になります。</p>
   <button id="closeHelp">閉じる</button>
  </div>
 </div>
@@ -438,6 +446,12 @@ let touchDrag = {
   ghost:null,
   moved:false
 };
+
+let lastCardTap = {
+  id:null,
+  time:0
+};
+const DOUBLE_TAP_MS = 320;
 
 const $ = id => document.getElementById(id);
 const zoneEl = z => $(z+'Zone');
@@ -690,6 +704,28 @@ function render(){
   updateStatus();
 }
 
+function toggleCardTapped(c){
+  if(!c)return false;
+
+  if(c.zone==='battle'){
+    pushHistory();
+    const root=getBattleStackRoot(c);
+    const nextTapped=!root.tapped;
+    setBattleStackTapped(c,nextTapped);
+    render();
+    return true;
+  }
+
+  if(c.zone==='mana'){
+    pushHistory();
+    c.tapped=!c.tapped;
+    render();
+    return true;
+  }
+
+  return false;
+}
+
 function clearTouchDropHighlights(){
   document.querySelectorAll('.touchDropTarget').forEach(el=>el.classList.remove('touchDropTarget'));
   document.querySelectorAll('.touchStackTarget').forEach(el=>el.classList.remove('touchStackTarget'));
@@ -828,6 +864,19 @@ function makeCardEl(c,zone){
     e.stopPropagation();
     if(el.dataset.suppressClick==='1')return;
 
+    // スマホ向けダブルタップ：場/マナはタップ・アンタップを切り替える。
+    const now=Date.now();
+    if((zone==='battle'||zone==='mana') &&
+       lastCardTap.id===c.id &&
+       now-lastCardTap.time<=DOUBLE_TAP_MS){
+      lastCardTap={id:null,time:0};
+      selectedId=null;
+      stackingMode=false;
+      toggleCardTapped(c);
+      return;
+    }
+    lastCardTap={id:c.id,time:now};
+
     // スマホ向け：場のカードを選択→「重ねる」→重ね先をタップ
     if(stackingMode && selectedId && c.id!==selectedId){
       const moving=cardById(selectedId);
@@ -850,17 +899,15 @@ function makeCardEl(c,zone){
   });
 
   el.addEventListener('dblclick',e=>{
-    pushHistory();
-    if(zone==='battle'){
-      const root=getBattleStackRoot(c);
-      const nextTapped=!root.tapped;
-      setBattleStackTapped(c, nextTapped);
-    }else if(zone==='mana'){
-      c.tapped=!c.tapped;
+    e.preventDefault();
+    e.stopPropagation();
+    if(zone==='battle'||zone==='mana'){
+      toggleCardTapped(c);
     }else{
+      pushHistory();
       c.revealed=!c.revealed;
+      render();
     }
-    render();
   });
 
   el.addEventListener('dragstart',e=>{
@@ -1368,18 +1415,7 @@ $('unstackBtn').onclick=()=>{
 
 $('tapBtn').onclick=()=>{
   const c=cardById(selectedId);
-  if(!c)return;
-  if(c.zone==='battle'){
-    pushHistory();
-    const root=getBattleStackRoot(c);
-    const nextTapped=!root.tapped;
-    setBattleStackTapped(c, nextTapped);
-    render();
-  }else if(c.zone==='mana'){
-    pushHistory();
-    c.tapped=!c.tapped;
-    render();
-  }
+  toggleCardTapped(c);
 };
 
 $('revealBtn').onclick=()=>{
